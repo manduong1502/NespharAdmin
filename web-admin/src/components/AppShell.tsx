@@ -489,7 +489,7 @@ export const AppShell: React.FC = () => {
         <div className="mt-4 shrink-0 space-y-2 border-t border-white/[0.08] pt-3.5">
           {!isNarrow && (
             <a
-              href="https://zalo.me/s/1283290697529026891/?env=TESTING&version=7"
+              href="https://zalo.me/s/1283290697529026891/?env=TESTING&version=8"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.04] px-3 py-2 text-[12px] text-[#C8CFE6] transition-colors hover:border-white/[0.15] hover:bg-white/[0.08]"
@@ -705,7 +705,7 @@ export const AppShell: React.FC = () => {
                   </div>
                   <div className="mt-1 space-y-0.5">
                     <a
-                      href="https://zalo.me/s/1283290697529026891/?env=TESTING&version=7"
+                      href="https://zalo.me/s/1283290697529026891/?env=TESTING&version=8"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center justify-between rounded-xl px-3 py-2 text-[13px] font-medium text-ink-secondary hover:bg-[#F5F7FC] hover:text-pharma-600"
