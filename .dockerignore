@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+**/dist
+**/www
+backend/data/*.sqlite*
+backend/uploads/*
+.env
+**/.env
+.git
+.vscode
+scratch
+*.pdf
+*.log

@@ -1,0 +1,53 @@
+services:
+  nesphar-core:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nesphar-pharma-core
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 768m
+    cpus: 1.5
+    ports:
+      - "${HOST_BIND_IP:-127.0.0.1}:${PORT:-4005}:4000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      TZ: Asia/Ho_Chi_Minh
+      PORT: "4000"
+      JWT_SECRET: "${JWT_SECRET:-nesphar-change-this-secret-in-production-2026}"
+      ZALO_APP_SECRET: "${ZALO_APP_SECRET:-}"
+      ALLOW_SIMULATOR_PHONE_FALLBACK: "${ALLOW_SIMULATOR_PHONE_FALLBACK:-true}"
+      ALLOW_DEMO_TIER_SWITCH: "${ALLOW_DEMO_TIER_SWITCH:-false}"
+      PAYMENT_WEBHOOK_SECRET: "${PAYMENT_WEBHOOK_SECRET:-}"
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID:-}"
+      OUTBOUND_WEBHOOK_URL: "${OUTBOUND_WEBHOOK_URL:-}"
+      CORS_ORIGINS: "${CORS_ORIGINS:-}"
+      DATA_DIR: /app/backend/data
+      UPLOADS_DIR: /app/backend/uploads
+      WEB_ADMIN_DIST: /app/web-admin/dist
+    volumes:
+      - nesphar_sqlite_data:/app/backend/data
+      - nesphar_uploads_data:/app/backend/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  nesphar_sqlite_data:
+    name: nesphar_sqlite_data
+  nesphar_uploads_data:
+    name: nesphar_uploads_data

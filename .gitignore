@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+backend/dist/
+web-admin/dist/
+mini-app/www/
+
+# Runtime SQLite WAL & uploaded files
+backend/data/*.sqlite
+backend/data/*.sqlite-shm
+backend/data/*.sqlite-wal
+backend/uploads/
+
+# Environment secrets (ZMP_TOKEN, JWT_SECRET, etc.)
+.env
+**/.env
+!.env.example
+!**/.env.example
+
+# Local contracts, scratch, IDE & agent metadata
+*.pdf
+.agent/
+scratch/
+*.log
+.DS_Store
+Thumbs.db

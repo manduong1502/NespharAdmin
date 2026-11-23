@@ -1,0 +1,14 @@
+{
+  "app": {
+    "title": "Dược Phẩm NESPHAR",
+    "headerColor": "#3E4095",
+    "textColor": "white",
+    "statusBar": "transparent",
+    "actionBarHidden": true,
+    "hideIOSSafeAreaBottom": true,
+    "hideAndroidBottomNavigationBar": false
+  },
+  "listCSS": [],
+  "listSyncJS": [],
+  "listAsyncJS": []
+}

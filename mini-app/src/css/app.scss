@@ -1,0 +1,110 @@
+:root {
+  --pharma-primary: #3e4095;
+  --pharma-primary-dark: #31337a;
+  --pharma-tint: #e6e9fc;
+  --surface-bg: #f3f5fb;
+  --surface-card: #fafbff;
+  --surface-border: #dce1f0;
+  --ink-primary: #121833;
+  --ink-secondary: #3e486b;
+  --ink-muted: #5a658a;
+  --zaui-light-primary-color: #3e4095;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #e6eaf5;
+  color: var(--ink-primary);
+  font-family: "Be Vietnam Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  caret-color: var(--pharma-primary);
+  text-underline-offset: 3px;
+}
+
+::selection {
+  background-color: #c5cafa;
+  color: #1e2059;
+}
+
+:focus-visible {
+  outline: 2px solid var(--pharma-primary);
+  outline-offset: 2px;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Clean custom scrollbars for horizontal carousels & desktop preview */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: #edf0f8;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #b0b6ec;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3e4095;
+}
+
+/* Mobile shell container: full width on phone/Zalo WebView, centered phone viewport on desktop */
+.miniapp-shell {
+  width: 100%;
+  max-width: 440px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  background-color: var(--surface-bg);
+  position: relative;
+  overflow-x: clip;
+}
+
+@media (min-width: 480px) {
+  .miniapp-shell {
+    border-left: 1px solid #dce1f0;
+    border-right: 1px solid #dce1f0;
+    box-shadow: 0 4px 14px rgba(18, 24, 51, 0.05);
+  }
+}
+
+/* Safe header top spacing for Zalo status bar (iOS Dynamic Island / Android / Desktop) */
+.zmp-safe-top {
+  padding-top: max(var(--zaui-safe-area-inset-top, 0px), env(safe-area-inset-top, 0px), 32px);
+}
+
+.zmp-safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 10px);
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.toast-enter {
+  animation: toastSlideIn 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
