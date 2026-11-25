@@ -34,6 +34,7 @@ import { useAppActions } from "@/hooks/useAppActions";
 import {
   ApiBusinessError,
   createMiniAppOrderApi,
+  IS_LIVE_BACKEND,
 } from "@/services/api";
 import { ZaloPreviewCapsule } from "@/components/ZaloPreviewCapsule";
 
@@ -133,10 +134,24 @@ const CheckoutPage: React.FC = () => {
         navigate("/orders");
         return;
       }
+      if (IS_LIVE_BACKEND) {
+        setSubmitting(false);
+        showToast(
+          "Kết nối mạng không ổn định, đơn hàng chưa gửi được. Vui lòng bấm Đặt hàng lại!"
+        );
+        return;
+      }
     } catch (err) {
       if (err instanceof ApiBusinessError) {
         setSubmitting(false);
         showToast(err.message);
+        return;
+      }
+      if (IS_LIVE_BACKEND) {
+        setSubmitting(false);
+        showToast(
+          "Kết nối mạng không ổn định, đơn hàng chưa gửi được. Vui lòng bấm Đặt hàng lại!"
+        );
         return;
       }
     }

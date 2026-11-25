@@ -268,7 +268,10 @@ export const OrdersOperationsPage: React.FC = () => {
     }
   };
 
-  const pointsDiscount = Number((activeOrder as unknown as { pointsDiscount?: number })?.pointsDiscount || 0);
+  const pointsDiscount = Number(activeOrder?.pointsDiscount || 0);
+  const voucherDiscountOnly = activeOrder
+    ? Math.max(0, activeOrder.discountAmount - pointsDiscount)
+    : 0;
   const pendingCount = orders.filter((o) => o.status === "pending").length;
   const shippingCount = orders.filter((o) => o.status === "shipping").length;
   const completedCount = orders.filter((o) => o.status === "completed").length;
@@ -807,15 +810,15 @@ export const OrdersOperationsPage: React.FC = () => {
                     {formatVnd(activeOrder.subtotal)}
                   </span>
                 </div>
-                {activeOrder.discountAmount > 0 && (
+                {voucherDiscountOnly > 0 && (
                   <div className="text-[#136C3E]">
                     Mã giảm giá ({activeOrder.voucherCode || "Voucher"}): -
-                    {formatVnd(activeOrder.discountAmount)}
+                    {formatVnd(voucherDiscountOnly)}
                   </div>
                 )}
                 {pointsDiscount > 0 && (
                   <div className="text-pharma-600">
-                    Đổi điểm tích lũy: -{formatVnd(pointsDiscount)}
+                    Đổi điểm tích lũy ({activeOrder.pointsRedeemed || Math.round(pointsDiscount / 1000)} điểm): -{formatVnd(pointsDiscount)}
                   </div>
                 )}
                 <div className="text-ink-muted">

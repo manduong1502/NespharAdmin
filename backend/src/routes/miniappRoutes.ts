@@ -403,6 +403,16 @@ miniappRouter.get("/bootstrap", (req, res) => {
     sections: safeJsonParse(String(a.sections_json || "[]"), []),
   }));
 
+  const readNotiSet = new Set<string>(
+    activeCustomerId
+      ? (
+          db
+            .prepare(`SELECT notification_id FROM notification_reads WHERE customer_id = ?`)
+            .all(activeCustomerId) as Array<{ notification_id: string }>
+        ).map((r) => String(r.notification_id))
+      : []
+  );
+
   const notifications = (
     activeCustomerId
       ? (db
@@ -425,7 +435,7 @@ miniappRouter.get("/bootstrap", (req, res) => {
     title: String(n.title),
     body: String(n.body),
     createdAt: String(n.created_at),
-    read: Boolean(n.is_read),
+    read: Boolean(n.is_read) || readNotiSet.has(String(n.id)),
     targetLink: String(n.target_link || "/orders"),
   }));
 
@@ -737,7 +747,7 @@ miniappRouter.put("/profile", miniappWriteLimiter, (req, res) => {
     name !== undefined ? String(name).trim().slice(0, 120) : String(existing.name);
   const nextPhone =
     phone !== undefined ? normalizePhone(String(phone)).slice(0, 16) : String(existing.phone);
-  const allowDemoTierSwitch = process.env.ALLOW_DEMO_TIER_SWITCH !== "false";
+  const allowDemoTierSwitch = process.env.ALLOW_DEMO_TIER_SWITCH === "true";
   const allowedTiers = ["retail", "clinic", "pharmacy", "distributor"];
   const nextTier =
     allowDemoTierSwitch && customerTier && allowedTiers.includes(String(customerTier))
@@ -1065,7 +1075,7 @@ miniappRouter.post("/orders", miniappWriteLimiter, (req, res) => {
     }
 
     let shippingFee = subtotal >= 250000 ? 0 : 25000;
-    if (appliedVoucherCode === "FREESHIPHT" && subtotal >= 150000) {
+    if (appliedVoucherCode === "FREESHIPHT") {
       shippingFee = 0;
       discountAmount = 0;
     }
@@ -1421,17 +1431,31 @@ miniappRouter.post("/support-tickets", miniappWriteLimiter, (req, res) => {
 
 miniappRouter.post("/notifications/:id/read", (req, res) => {
   const notiId = String(req.params.id);
-  const customerId = String(req.body?.customerId || "cust-man");
-  db.prepare(
-    `UPDATE notifications SET is_read = 1 WHERE id = ? AND customer_id = ?`
-  ).run(notiId, customerId);
+  const customerId = String(req.body?.customerId || "").trim();
+  if (customerId) {
+    db.prepare(
+      `UPDATE notifications SET is_read = 1 WHERE id = ? AND customer_id = ?`
+    ).run(notiId, customerId);
+    db.prepare(
+      `INSERT OR IGNORE INTO notification_reads (notification_id, customer_id, read_at)
+       VALUES (?, ?, ?)`
+    ).run(notiId, customerId, nowIsoLocal());
+  }
   res.json({ ok: true });
 });
 
 miniappRouter.post("/notifications/read-all", (req, res) => {
-  const { customerId = "cust-man" } = req.body || {};
-  db.prepare(
-    `UPDATE notifications SET is_read = 1 WHERE customer_id = ?`
-  ).run(String(customerId));
+  const customerId = String(req.body?.customerId || "").trim();
+  if (customerId) {
+    const ts = nowIsoLocal();
+    db.prepare(
+      `UPDATE notifications SET is_read = 1 WHERE customer_id = ?`
+    ).run(customerId);
+    db.prepare(
+      `INSERT OR IGNORE INTO notification_reads (notification_id, customer_id, read_at)
+       SELECT id, ?, ? FROM notifications
+       WHERE customer_id IS NULL OR customer_id = ?`
+    ).run(customerId, ts, customerId);
+  }
   res.json({ ok: true });
 });

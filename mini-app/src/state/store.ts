@@ -326,3 +326,4 @@ export const notificationsAtom = atom(
 
 export const toastMessageAtom = atom<string | null>(null);
 export const supportModalOpenAtom = atom<boolean>(false);
+export const supportDefaultTopicAtom = atom<"tu-van" | "bao-gia-si" | "gop-y">("tu-van");

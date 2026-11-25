@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAtom, useAtomValue } from "jotai";
 import {
   CheckCircle2,
@@ -10,14 +10,16 @@ import {
 import {
   companyInfoAtom,
   customerIdAtom,
+  supportDefaultTopicAtom,
   supportModalOpenAtom,
   userProfileAtom,
 } from "@/state/store";
 import { useAppActions } from "@/hooks/useAppActions";
-import { submitSupportTicketApi } from "@/services/api";
+import { IS_LIVE_BACKEND, submitSupportTicketApi } from "@/services/api";
 
 export const SupportModal: React.FC = () => {
   const [open, setOpen] = useAtom(supportModalOpenAtom);
+  const defaultTopic = useAtomValue(supportDefaultTopicAtom);
   const [user] = useAtom(userProfileAtom);
   const customerId = useAtomValue(customerIdAtom);
   const companyInfo = useAtomValue(companyInfoAtom);
@@ -28,24 +30,45 @@ export const SupportModal: React.FC = () => {
   const [content, setContent] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
+  useEffect(() => {
+    if (open) {
+      setTopic(defaultTopic);
+      if (user.phone && !phoneInput) setPhoneInput(user.phone);
+    }
+  }, [open, defaultTopic, user.phone, phoneInput]);
+
   if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanPhone = (phoneInput.trim() || user.phone || "").replace(/\D/g, "");
+    if (cleanPhone.length < 9) {
+      showToast("Vui lòng nhập số điện thoại để Dược sĩ liên hệ lại");
+      return;
+    }
     if (!content.trim()) {
       showToast("Vui lòng nhập nội dung cần Dược sĩ hỗ trợ");
       return;
     }
     try {
-      await submitSupportTicketApi({
+      const res = await submitSupportTicketApi({
         customerId,
         customerName: user.name,
-        phone: phoneInput.trim() || user.phone,
+        phone: cleanPhone,
         topic,
         content: content.trim(),
       });
-    } catch {
-      // Offline fallback still acknowledges receipt cleanly
+      if (IS_LIVE_BACKEND && !res) {
+        showToast("Mạng chập chờn, chưa gửi được yêu cầu. Vui lòng thử lại!");
+        return;
+      }
+    } catch (err) {
+      showToast(
+        err instanceof Error
+          ? err.message
+          : "Chưa gửi được yêu cầu. Vui lòng thử lại!"
+      );
+      return;
     }
     setSubmitted(true);
     setTimeout(() => {

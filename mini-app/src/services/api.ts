@@ -25,6 +25,8 @@ export const MINIAPP_API_BASE = envApiBase
   ? "http://localhost:4000/api/v1/miniapp"
   : "";
 
+export const IS_LIVE_BACKEND = Boolean(MINIAPP_API_BASE);
+
 export class ApiBusinessError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -37,7 +39,7 @@ export class ApiBusinessError extends Error {
 async function requestJson<T>(
   path: string,
   options: RequestInit = {},
-  timeoutMs = 5000
+  timeoutMs = 12000
 ): Promise<T | null> {
   if (!MINIAPP_API_BASE) return null;
 

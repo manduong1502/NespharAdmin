@@ -165,6 +165,8 @@ export interface AdminOrder {
   returnReason: string;
   subtotal: number;
   discountAmount: number;
+  pointsRedeemed?: number;
+  pointsDiscount?: number;
   shippingFee: number;
   totalAmount: number;
   voucherCode: string | null;

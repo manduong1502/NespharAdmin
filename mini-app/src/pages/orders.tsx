@@ -26,7 +26,11 @@ import {
 import { ORDER_STATUS_META, formatVnd } from "@/utils/format";
 import { Order, OrderStatus } from "@/types";
 import { useAppActions } from "@/hooks/useAppActions";
-import { ApiBusinessError, cancelMiniAppOrderApi } from "@/services/api";
+import {
+  ApiBusinessError,
+  cancelMiniAppOrderApi,
+  IS_LIVE_BACKEND,
+} from "@/services/api";
 import { ZaloPreviewCapsule } from "@/components/ZaloPreviewCapsule";
 
 const STATUS_TABS: { id: "all" | OrderStatus; label: string }[] = [
@@ -95,9 +99,17 @@ const OrdersPage: React.FC = () => {
         showToast(`Đã hủy đơn #${order.code} & hoàn tồn lô FEFO`);
         return;
       }
+      if (IS_LIVE_BACKEND) {
+        showToast("Kết nối mạng không ổn định, chưa hủy được đơn. Vui lòng thử lại!");
+        return;
+      }
     } catch (err) {
       if (err instanceof ApiBusinessError) {
         showToast(err.message);
+        return;
+      }
+      if (IS_LIVE_BACKEND) {
+        showToast("Kết nối mạng không ổn định, chưa hủy được đơn. Vui lòng thử lại!");
         return;
       }
     }

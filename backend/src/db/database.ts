@@ -252,6 +252,13 @@ export function initSchema(): void {
       created_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS notification_reads (
+      notification_id TEXT NOT NULL,
+      customer_id TEXT NOT NULL,
+      read_at TEXT NOT NULL,
+      PRIMARY KEY (notification_id, customer_id)
+    );
+
     CREATE TABLE IF NOT EXISTS support_tickets (
       id TEXT PRIMARY KEY,
       customer_id TEXT,

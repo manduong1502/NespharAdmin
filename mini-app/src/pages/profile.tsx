@@ -31,6 +31,7 @@ import {
   customerIdAtom,
   loyaltyHistoryAtom,
   ordersAtom,
+  tierDiscountsAtom,
   userProfileAtom,
   vouchersAtom,
   zaloIdAtom,
@@ -52,6 +53,7 @@ const ProfilePage: React.FC = () => {
   const loyaltyHistory = useAtomValue(loyaltyHistoryAtom);
   const orders = useAtomValue(ordersAtom);
   const vouchers = useAtomValue(vouchersAtom);
+  const tierDiscounts = useAtomValue(tierDiscountsAtom);
   const companyInfo = useAtomValue(companyInfoAtom);
   const {
     shareContent,
@@ -689,7 +691,7 @@ const ProfilePage: React.FC = () => {
         </div>
       )}
 
-      {/* Customer Tier Switcher Modal (Demonstrating Contract Item 3: Automatic Price by Customer Group) */}
+      {/* Customer Tier Benefits & B2B GPP Verification Modal */}
       {tierModalOpen && (
         <div
           role="dialog"
@@ -705,10 +707,10 @@ const ProfilePage: React.FC = () => {
             <div className="flex items-center justify-between border-b border-[#DCE1F0] pb-3">
               <div>
                 <h2 className="text-[16px] font-bold text-[#121833]">
-                  Quyền lợi & Nhóm khách hàng
+                  Quyền lợi & Hạng đối tác NESPHAR
                 </h2>
                 <p className="text-[12px] text-[#3E486B]">
-                  Giá bán tự động hiển thị theo phân nhóm CRM trên Web Admin
+                  Hạng tài khoản được Dược sĩ NESPHAR xác thực theo hồ sơ GPP/GDP
                 </p>
               </div>
               <button
@@ -725,24 +727,10 @@ const ProfilePage: React.FC = () => {
               {(Object.keys(CUSTOMER_TIERS) as CustomerTier[]).map((tierKey) => {
                 const info = CUSTOMER_TIERS[tierKey];
                 const active = user.customerTier === tierKey;
+                const livePct = tierDiscounts[tierKey] ?? info.discountPercent;
                 return (
-                  <button
+                  <div
                     key={tierKey}
-                    type="button"
-                    onClick={async () => {
-                      setUser({ customerTier: tierKey });
-                      setTierModalOpen(false);
-                      showToast(`Đã chuyển chế độ hiển thị giá: ${info.label}`);
-                      try {
-                        await updateMiniAppProfileApi({
-                          customerId,
-                          customerTier: tierKey,
-                        });
-                        window.dispatchEvent(new Event("nesphar:refresh-bootstrap"));
-                      } catch {
-                        // local fallback
-                      }
-                    }}
                     className={`flex w-full items-start justify-between gap-3 rounded-xl border p-3 text-left ${
                       active
                         ? "border-[#3E4095] bg-[#EEF0FD]"
@@ -750,13 +738,18 @@ const ProfilePage: React.FC = () => {
                     }`}
                   >
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[13.5px] font-bold text-[#121833]">
                           {info.label}
                         </span>
-                        {info.discountPercent > 0 && (
+                        {livePct > 0 && (
                           <span className="rounded bg-[#3E4095] px-1.5 py-0.5 text-[10.5px] font-bold text-white">
-                            -{info.discountPercent}% toàn sàn
+                            -{livePct}% chiết khấu sỉ
+                          </span>
+                        )}
+                        {active && (
+                          <span className="rounded bg-white px-1.5 py-0.5 text-[10.5px] font-semibold text-[#3E4095]">
+                            Hạng hiện tại
                           </span>
                         )}
                       </div>
@@ -770,10 +763,24 @@ const ProfilePage: React.FC = () => {
                         className="mt-0.5 shrink-0 text-[#3E4095]"
                       />
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
+
+            {user.customerTier === "retail" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTierModalOpen(false);
+                  openSupportSheet("bao-gia-si");
+                }}
+                className="mt-3.5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#3E4095] py-2.5 text-[13.5px] font-bold text-white hover:bg-[#31337A]"
+              >
+                <UserPlus size={16} />
+                <span>Đăng ký mở tài khoản Nhà thuốc / Đại lý B2B</span>
+              </button>
+            )}
           </div>
         </div>
       )}

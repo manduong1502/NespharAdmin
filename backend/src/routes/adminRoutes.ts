@@ -40,6 +40,7 @@ import {
 import { reconcileBankTransfer } from "./webhookRoutes";
 import { hashPassword, signJwt, verifyPassword } from "../utils/security";
 import {
+  computeVolumeAwareUnitPrice,
   importProductsFromXlsxBuffer,
   VolumePriceTier,
 } from "../services/xlsxImportService";
@@ -1434,6 +1435,8 @@ adminRouter.get("/orders", requireAuth, (_req, res) => {
       returnReason: String(o.return_reason || ""),
       subtotal: Number(o.subtotal),
       discountAmount: Number(o.discount_amount),
+      pointsRedeemed: Number(o.points_redeemed || 0),
+      pointsDiscount: Number(o.points_discount || 0),
       shippingFee: Number(o.shipping_fee),
       totalAmount: Number(o.total_amount),
       voucherCode: o.voucher_code ? String(o.voucher_code) : null,
@@ -1521,6 +1524,11 @@ function applySingleOrderStatusUpdate(params: {
       }
     }
     returnStatus = "returned";
+    if (existing.voucher_code) {
+      db.prepare(
+        `UPDATE vouchers SET used_count = MAX(0, used_count - 1) WHERE code = ?`
+      ).run(String(existing.voucher_code));
+    }
     revertOrderLoyaltyIfNeeded(params.orderId);
   }
 
@@ -1707,6 +1715,12 @@ adminRouter.post(
         WHERE id = ?
       `).run(String(reason), req.staff!.sub, ts, orderId);
 
+      if (existing.voucher_code) {
+        db.prepare(
+          `UPDATE vouchers SET used_count = MAX(0, used_count - 1) WHERE code = ?`
+        ).run(String(existing.voucher_code));
+      }
+
       revertOrderLoyaltyIfNeeded(orderId);
 
       logAudit({
@@ -1806,7 +1820,6 @@ adminRouter.post(
       customer.custom_discount_percent !== null
         ? Number(customer.custom_discount_percent)
         : Number(tierDiscounts[effectiveTier] || 0);
-    const tierFactor = (100 - tierPct) / 100;
 
     const orderId = `ord-${Date.now()}`;
     const orderCode = String(Math.floor(1462200 + (Date.now() % 800000))).padStart(11, "0");
@@ -1857,11 +1870,20 @@ adminRouter.post(
 
         const qty = Math.max(1, Math.round(Number(raw.quantity || 1)));
         const mult = Number(chosenOpt.multiplier || 1);
-        const extraSave = chosenOpt.extraSavePercent
-          ? (100 - Number(chosenOpt.extraSavePercent)) / 100
-          : 1;
-        const unitPrice =
-          Math.round((Number(prod.retail_price) * mult * extraSave * tierFactor) / 1000) * 1000;
+        const volumeTiers = safeJson<VolumePriceTier[]>(
+          String(prod.volume_tiers_json || "[]"),
+          []
+        );
+        const unitPrice = computeVolumeAwareUnitPrice({
+          retailPrice: Number(prod.retail_price),
+          volumeTiers,
+          multiplier: mult,
+          extraSavePercent: chosenOpt.extraSavePercent
+            ? Number(chosenOpt.extraSavePercent)
+            : 0,
+          customerDiscountPercent: tierPct,
+          quantity: qty,
+        });
         const baseQtyRequired = Math.max(1, Math.ceil(qty * mult));
 
         const allocations = allocateBatchesFEFO({

@@ -9,6 +9,7 @@ import {
   notificationsAtom,
   ordersAtom,
   selectedAddressIdAtom,
+  supportDefaultTopicAtom,
   supportModalOpenAtom,
   toastMessageAtom,
   useLoyaltyPointsAtom,
@@ -54,6 +55,7 @@ export function useAppActions() {
   const companyInfo = useAtomValue(companyInfoAtom);
   const setToast = useSetAtom(toastMessageAtom);
   const setSupportOpen = useSetAtom(supportModalOpenAtom);
+  const setSupportTopic = useSetAtom(supportDefaultTopicAtom);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -426,6 +428,17 @@ export function useAppActions() {
     loginWithZalo,
     linkZaloPhone,
     logoutZalo,
-    openSupportSheet: () => setSupportOpen(true),
+    openSupportSheet: (defaultTopicOrEvent?: unknown) => {
+      if (
+        defaultTopicOrEvent === "tu-van" ||
+        defaultTopicOrEvent === "bao-gia-si" ||
+        defaultTopicOrEvent === "gop-y"
+      ) {
+        setSupportTopic(defaultTopicOrEvent);
+      } else {
+        setSupportTopic("tu-van");
+      }
+      setSupportOpen(true);
+    },
   };
 }
