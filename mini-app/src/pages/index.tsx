@@ -182,56 +182,58 @@ const HomePage: React.FC = () => {
 
       {/* Hero Banner Slider */}
       <section aria-label="Chương trình nổi bật" className="relative">
-        <div
-          onClick={() => navigate(currentBanner.ctaLink)}
-          className="relative h-[218px] w-full cursor-pointer overflow-hidden bg-[#E6E9FC]"
-        >
-          <div className="grid h-full grid-cols-12 items-center px-4 pb-7">
-            <div className="col-span-7 z-10 pr-2">
-              <span className="inline-block rounded-full bg-[#3E4095] px-2.5 py-0.5 text-[11px] font-bold text-white">
-                {currentBanner.badge}
-              </span>
-              <p className="mt-1.5 line-clamp-2 text-[15.5px] font-extrabold leading-snug text-[#1E2059]">
-                {currentBanner.title}
-              </p>
-              <ul className="mt-2 space-y-1">
-                {currentBanner.points.map((pt, i) => (
-                  <li
-                    key={i}
-                    className="truncate rounded-full bg-[#282A6E] px-2.5 py-0.5 text-[11px] font-medium text-[#EEF0FD]"
-                  >
-                    {pt}
-                  </li>
-                ))}
-              </ul>
-            </div>
+        {currentBanner && (
+          <div
+            onClick={() => navigate(currentBanner.ctaLink)}
+            className="relative h-[218px] w-full cursor-pointer overflow-hidden bg-[#E6E9FC]"
+          >
+            <div className="grid h-full grid-cols-12 items-center px-4 pb-7">
+              <div className="col-span-7 z-10 pr-2">
+                <span className="inline-block rounded-full bg-[#3E4095] px-2.5 py-0.5 text-[11px] font-bold text-white">
+                  {currentBanner.badge}
+                </span>
+                <p className="mt-1.5 line-clamp-2 text-[15.5px] font-extrabold leading-snug text-[#1E2059]">
+                  {currentBanner.title}
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {currentBanner.points.map((pt, i) => (
+                    <li
+                      key={i}
+                      className="truncate rounded-full bg-[#282A6E] px-2.5 py-0.5 text-[11px] font-medium text-[#EEF0FD]"
+                    >
+                      {pt}
+                    </li>
+                  ))}
+                </ul>
+              </div>
 
-            <div className="col-span-5 flex justify-end">
-              <div className="h-[142px] w-[124px] overflow-hidden rounded-[999px] border-2 border-white bg-white">
-                <img
-                  src={currentBanner.image}
-                  alt={currentBanner.title}
-                  className="h-full w-full object-cover"
-                />
+              <div className="col-span-5 flex justify-end">
+                <div className="h-[142px] w-[124px] overflow-hidden rounded-[999px] border-2 border-white bg-white">
+                  <img
+                    src={currentBanner.image}
+                    alt={currentBanner.title}
+                    className="h-full w-full object-cover"
+                  />
+                </div>
               </div>
             </div>
-          </div>
 
-          <button
-            type="button"
-            aria-label="Chuyển slide tiếp theo"
-            onClick={(e) => {
-              e.stopPropagation();
-              setBannerIdx((prev) => (prev + 1) % Math.max(1, banners.length));
-            }}
-            className="tabular-nums absolute bottom-9 right-3 rounded-full bg-[#1E2059]/75 px-2.5 py-0.5 text-[11px] font-semibold text-white"
-          >
-            {(bannerIdx % Math.max(1, banners.length)) + 1}/{banners.length}
-          </button>
-        </div>
+            <button
+              type="button"
+              aria-label="Chuyển slide tiếp theo"
+              onClick={(e) => {
+                e.stopPropagation();
+                setBannerIdx((prev) => (prev + 1) % Math.max(1, banners.length));
+              }}
+              className="tabular-nums absolute bottom-9 right-3 rounded-full bg-[#1E2059]/75 px-2.5 py-0.5 text-[11px] font-semibold text-white"
+            >
+              {(bannerIdx % Math.max(1, banners.length)) + 1}/{banners.length}
+            </button>
+          </div>
+        )}
 
         {/* Overlapping Member Loyalty & Zalo Login Card */}
-        <div className="relative z-20 -mt-7 px-3.5">
+        <div className={`relative z-20 px-3.5 ${currentBanner ? "-mt-7" : "pt-3.5"}`}>
           {user.zaloLoggedIn ? (
             <button
               type="button"

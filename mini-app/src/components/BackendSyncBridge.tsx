@@ -91,8 +91,8 @@ export const BackendSyncBridge: React.FC = () => {
       if (data.products?.length) setProducts(data.products);
       if (data.categories?.length) setCategories(data.categories);
       if (data.productTags?.length) setProductTags(data.productTags);
-      if (data.banners?.length) setBanners(data.banners);
-      if (data.vouchers?.length) setVouchers(data.vouchers);
+      if (Array.isArray(data.banners)) setBanners(data.banners);
+      if (Array.isArray(data.vouchers)) setVouchers(data.vouchers);
       if (data.articles?.length) setArticles(data.articles);
 
       if (data.companyInfo && Object.keys(data.companyInfo).length > 0) {

@@ -183,6 +183,23 @@ function safeJsonParse<T>(raw: string, fallback: T): T {
   }
 }
 
+function parseVoucherExpiryIso(raw: string): string {
+  const s = String(raw || "").trim();
+  if (!s) return "9999-12-31";
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    return s.slice(0, 10);
+  }
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m) {
+    return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  }
+  return "9999-12-31";
+}
+
+function isVoucherNotExpired(raw: string, todayIso: string): boolean {
+  return parseVoucherExpiryIso(raw) >= todayIso;
+}
+
 function ensureCustomerRow(params: {
   customerId: string;
   zaloId?: string;
@@ -347,25 +364,28 @@ miniappRouter.get("/bootstrap", (req, res) => {
       };
     });
 
+  const todayIso = todayDateOnly();
   const vouchers = (
     db
       .prepare(
         `SELECT * FROM vouchers
-         WHERE is_active = 1 AND used_count < usage_limit AND expiry_date >= ?
+         WHERE is_active = 1 AND used_count < usage_limit
          ORDER BY min_order_value ASC`
       )
-      .all(todayDateOnly()) as Array<Record<string, unknown>>
-  ).map((v) => ({
-    id: String(v.id),
-    code: String(v.code),
-    title: String(v.title),
-    description: String(v.description),
-    discountType: String(v.discount_type),
-    discountValue: Number(v.discount_value),
-    maxDiscount: v.max_discount !== null ? Number(v.max_discount) : undefined,
-    minOrderValue: Number(v.min_order_value),
-    expiryDate: String(v.expiry_date),
-  }));
+      .all() as Array<Record<string, unknown>>
+  )
+    .filter((v) => isVoucherNotExpired(String(v.expiry_date || ""), todayIso))
+    .map((v) => ({
+      id: String(v.id),
+      code: String(v.code),
+      title: String(v.title),
+      description: String(v.description),
+      discountType: String(v.discount_type),
+      discountValue: Number(v.discount_value),
+      maxDiscount: v.max_discount !== null ? Number(v.max_discount) : undefined,
+      minOrderValue: Number(v.min_order_value),
+      expiryDate: String(v.expiry_date),
+    }));
 
   const articles = (
     db
@@ -1014,14 +1034,19 @@ miniappRouter.post("/orders", miniappWriteLimiter, (req, res) => {
     let discountAmount = 0;
     let appliedVoucherCode: string | null = null;
     if (voucherCode) {
-      const vRow = db
+      const candidateVoucher = db
         .prepare(
           `SELECT * FROM vouchers
-           WHERE code = ? AND is_active = 1 AND used_count < usage_limit AND expiry_date >= ?`
+           WHERE code = ? AND is_active = 1 AND used_count < usage_limit`
         )
-        .get(String(voucherCode).trim().toUpperCase(), todayDateOnly()) as
+        .get(String(voucherCode).trim().toUpperCase()) as
         | Record<string, unknown>
         | undefined;
+      const vRow =
+        candidateVoucher &&
+        isVoucherNotExpired(String(candidateVoucher.expiry_date || ""), todayDateOnly())
+          ? candidateVoucher
+          : undefined;
       if (vRow && subtotal >= Number(vRow.min_order_value)) {
         appliedVoucherCode = String(vRow.code);
         if (String(vRow.discount_type) === "fixed") {

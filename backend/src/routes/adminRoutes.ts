@@ -2639,6 +2639,154 @@ adminRouter.post(
   }
 );
 
+adminRouter.delete(
+  "/cms/banners/:id",
+  requireAuth,
+  requirePermission("manage_cms"),
+  (req: AuthenticatedRequest, res) => {
+    const id = String(req.params.id);
+    const existing = db
+      .prepare(`SELECT title FROM banners WHERE id = ?`)
+      .get(id) as { title: string } | undefined;
+    if (!existing) {
+      res.status(404).json({ error: "Không tìm thấy banner cần xóa." });
+      return;
+    }
+    db.prepare(`DELETE FROM banners WHERE id = ?`).run(id);
+    logAudit({
+      actorId: req.staff!.sub,
+      actorName: req.staff!.name,
+      actorRole: req.staff!.role,
+      action: "DELETE_BANNER",
+      entityType: "banner",
+      entityId: id,
+      summary: `Xóa Banner Mini App: "${existing.title}"`,
+      ipAddress: req.ip,
+    });
+    res.json({ ok: true });
+  }
+);
+
+adminRouter.delete(
+  "/cms/categories/:id",
+  requireAuth,
+  requirePermission("manage_cms"),
+  (req: AuthenticatedRequest, res) => {
+    const id = String(req.params.id);
+    const existing = db
+      .prepare(`SELECT name FROM categories WHERE id = ?`)
+      .get(id) as { name: string } | undefined;
+    if (!existing) {
+      res.status(404).json({ error: "Không tìm thấy danh mục cần xóa." });
+      return;
+    }
+    const used = db
+      .prepare(`SELECT COUNT(*) AS cnt FROM products WHERE category_id = ?`)
+      .get(id) as { cnt: number };
+    if (used.cnt > 0) {
+      res.status(400).json({
+        error: `Danh mục "${existing.name}" đang chứa ${used.cnt} sản phẩm nên không thể xóa. Bạn có thể bấm "Tạm ẩn" danh mục này.`,
+      });
+      return;
+    }
+    db.prepare(`DELETE FROM categories WHERE id = ?`).run(id);
+    logAudit({
+      actorId: req.staff!.sub,
+      actorName: req.staff!.name,
+      actorRole: req.staff!.role,
+      action: "DELETE_CATEGORY",
+      entityType: "category",
+      entityId: id,
+      summary: `Xóa danh mục trống: "${existing.name}"`,
+      ipAddress: req.ip,
+    });
+    res.json({ ok: true });
+  }
+);
+
+adminRouter.delete(
+  "/cms/vouchers/:id",
+  requireAuth,
+  requirePermission("manage_cms"),
+  (req: AuthenticatedRequest, res) => {
+    const id = String(req.params.id);
+    const existing = db
+      .prepare(`SELECT code, title FROM vouchers WHERE id = ?`)
+      .get(id) as { code: string; title: string } | undefined;
+    if (!existing) {
+      res.status(404).json({ error: "Không tìm thấy mã giảm giá cần xóa." });
+      return;
+    }
+    db.prepare(`DELETE FROM vouchers WHERE id = ?`).run(id);
+    logAudit({
+      actorId: req.staff!.sub,
+      actorName: req.staff!.name,
+      actorRole: req.staff!.role,
+      action: "DELETE_VOUCHER",
+      entityType: "voucher",
+      entityId: id,
+      summary: `Xóa mã giảm giá ${existing.code} (${existing.title})`,
+      ipAddress: req.ip,
+    });
+    res.json({ ok: true });
+  }
+);
+
+const PROTECTED_POLICY_SLUGS = new Set([
+  "dieu-khoan-chinh-sach",
+  "chinh-sach-bao-mat",
+  "chinh-sach-doi-tra",
+  "chinh-sach-giao-hang",
+  "thong-tin-lien-he",
+  "gioi-thieu-nesphar",
+]);
+
+adminRouter.delete(
+  "/cms/articles/:slug",
+  requireAuth,
+  requirePermission("manage_cms"),
+  (req: AuthenticatedRequest, res) => {
+    const slug = String(req.params.slug);
+    if (PROTECTED_POLICY_SLUGS.has(slug)) {
+      res.status(400).json({
+        error:
+          "Đây là trang chính sách/pháp lý bắt buộc để Zalo duyệt Mini App. Bạn có thể sửa nội dung nhưng không nên xóa.",
+      });
+      return;
+    }
+    const existing = db
+      .prepare(`SELECT title FROM articles WHERE slug = ?`)
+      .get(slug) as { title: string } | undefined;
+    if (!existing) {
+      res.status(404).json({ error: "Không tìm thấy bài viết cần xóa." });
+      return;
+    }
+    db.prepare(`DELETE FROM articles WHERE slug = ?`).run(slug);
+    logAudit({
+      actorId: req.staff!.sub,
+      actorName: req.staff!.name,
+      actorRole: req.staff!.role,
+      action: "DELETE_ARTICLE",
+      entityType: "article",
+      entityId: slug,
+      summary: `Xóa bài viết Mini App: "${existing.title}"`,
+      ipAddress: req.ip,
+    });
+    res.json({ ok: true });
+  }
+);
+
+adminRouter.delete(
+  "/cms/notifications/:id",
+  requireAuth,
+  requirePermission("manage_cms"),
+  (req: AuthenticatedRequest, res) => {
+    const id = String(req.params.id);
+    db.prepare(`DELETE FROM notifications WHERE id = ?`).run(id);
+    res.json({ ok: true });
+  }
+);
+
 adminRouter.put(
   "/settings",
   requireAuth,

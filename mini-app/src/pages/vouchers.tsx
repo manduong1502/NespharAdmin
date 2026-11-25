@@ -33,6 +33,11 @@ const VouchersPage: React.FC = () => {
       </header>
 
       <main className="space-y-3 p-3.5">
+        {vouchers.length === 0 && (
+          <div className="rounded-xl border border-[#DCE1F0] bg-white p-6 text-center text-[13px] text-[#5A658A]">
+            Hiện chưa có mã giảm giá nào đang mở. Vui lòng quay lại sau nhé!
+          </div>
+        )}
         {vouchers.map((voucher) => {
           const isSelected = selectedCode === voucher.code;
           return (

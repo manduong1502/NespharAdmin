@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Bell, Edit3, Image as ImageIcon, Plus, Send, Upload } from "lucide-react";
+import { Bell, Edit3, Image as ImageIcon, Plus, Send, Trash2, Upload } from "lucide-react";
 import { apiRequest, uploadAdminFile } from "../api/client";
 import { ModalDialog } from "../components/OverlayPortal";
 import { useAuth } from "../context/AuthContext";
@@ -65,8 +65,36 @@ interface NotificationLog {
   createdAt: string;
 }
 
+const PROTECTED_POLICY_SLUGS = new Set([
+  "dieu-khoan-chinh-sach",
+  "chinh-sach-bao-mat",
+  "chinh-sach-doi-tra",
+  "chinh-sach-giao-hang",
+  "thong-tin-lien-he",
+  "gioi-thieu-nesphar",
+]);
+
+function toDateInputValue(raw: string): string {
+  const s = (raw || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m) {
+    return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+  }
+  return "2026-12-31";
+}
+
+function fromDateInputToVi(iso: string): string {
+  const m = (iso || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  return iso;
+}
+
 const BannerCover: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
   const [broken, setBroken] = useState(false);
+  useEffect(() => {
+    setBroken(false);
+  }, [src]);
   return (
     <div className="flex h-36 w-full items-center justify-center overflow-hidden bg-[#EEF0FD]">
       {src && !broken ? (
@@ -122,6 +150,7 @@ export const CmsContentPage: React.FC = () => {
 
   // Editors
   const [bannerModal, setBannerModal] = useState<BannerItem | null>(null);
+  const [categoryModal, setCategoryModal] = useState<CategoryItem | null>(null);
   const [voucherModal, setVoucherModal] = useState<VoucherItem | null>(null);
   const [articleModal, setArticleModal] = useState<ArticleItem | null>(null);
   const [pushForm, setPushForm] = useState({
@@ -191,9 +220,10 @@ export const CmsContentPage: React.FC = () => {
     if (!bannerModal) return;
     setSaving(true);
     try {
+      const cleanedPoints = bannerModal.points.map((s) => s.trim()).filter(Boolean);
       await apiRequest("/cms/banners", {
         method: "POST",
-        body: JSON.stringify(bannerModal),
+        body: JSON.stringify({ ...bannerModal, points: cleanedPoints }),
       });
       showToast(`Đã lưu banner "${bannerModal.title}"`);
       setBannerModal(null);
@@ -202,6 +232,18 @@ export const CmsContentPage: React.FC = () => {
       showToast(err instanceof Error ? err.message : "Lưu banner thất bại", "negative");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteBanner = async (b: BannerItem) => {
+    if (!canManage || !window.confirm(`Xóa vĩnh viễn banner "${b.title}"?`)) return;
+    try {
+      await apiRequest(`/cms/banners/${encodeURIComponent(b.id)}`, { method: "DELETE" });
+      showToast(`Đã xóa banner "${b.title}"`);
+      if (bannerModal?.id === b.id) setBannerModal(null);
+      await loadCms();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Không thể xóa banner", "negative");
     }
   };
 
@@ -231,6 +273,37 @@ export const CmsContentPage: React.FC = () => {
     }
   };
 
+  const handleSaveCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!categoryModal) return;
+    setSaving(true);
+    try {
+      await apiRequest("/cms/categories", {
+        method: "POST",
+        body: JSON.stringify(categoryModal),
+      });
+      showToast(`Đã lưu danh mục "${categoryModal.name}"`);
+      setCategoryModal(null);
+      await loadCms();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Lưu danh mục thất bại", "negative");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteCategory = async (c: CategoryItem) => {
+    if (!canManage || !window.confirm(`Xóa danh mục "${c.name}"?`)) return;
+    try {
+      await apiRequest(`/cms/categories/${encodeURIComponent(c.id)}`, { method: "DELETE" });
+      showToast(`Đã xóa danh mục "${c.name}"`);
+      if (categoryModal?.id === c.id) setCategoryModal(null);
+      await loadCms();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Không thể xóa danh mục", "negative");
+    }
+  };
+
   const handleSaveVoucher = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!voucherModal) return;
@@ -250,14 +323,30 @@ export const CmsContentPage: React.FC = () => {
     }
   };
 
+  const handleDeleteVoucher = async (v: VoucherItem) => {
+    if (!canManage || !window.confirm(`Xóa vĩnh viễn mã giảm giá "${v.code}"?`)) return;
+    try {
+      await apiRequest(`/cms/vouchers/${encodeURIComponent(v.id)}`, { method: "DELETE" });
+      showToast(`Đã xóa mã ${v.code}`);
+      if (voucherModal?.id === v.id) setVoucherModal(null);
+      await loadCms();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Không thể xóa mã giảm giá", "negative");
+    }
+  };
+
   const handleSaveArticle = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!articleModal) return;
     setSaving(true);
     try {
+      const cleanedSections = articleModal.sections.map((sec) => ({
+        heading: sec.heading.trim() || "Nội dung",
+        paragraphs: sec.paragraphs.map((p) => p.trim()).filter(Boolean),
+      }));
       await apiRequest("/cms/articles", {
         method: "POST",
-        body: JSON.stringify(articleModal),
+        body: JSON.stringify({ ...articleModal, sections: cleanedSections }),
       });
       showToast(`Đã lưu bài viết "${articleModal.title}"`);
       setArticleModal(null);
@@ -266,6 +355,18 @@ export const CmsContentPage: React.FC = () => {
       showToast(err instanceof Error ? err.message : "Lưu bài viết thất bại", "negative");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteArticle = async (a: ArticleItem) => {
+    if (!canManage || !window.confirm(`Xóa vĩnh viễn bài viết "${a.title}"?`)) return;
+    try {
+      await apiRequest(`/cms/articles/${encodeURIComponent(a.slug)}`, { method: "DELETE" });
+      showToast(`Đã xóa bài viết "${a.title}"`);
+      if (articleModal?.slug === a.slug) setArticleModal(null);
+      await loadCms();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Không thể xóa bài viết", "negative");
     }
   };
 
@@ -284,6 +385,17 @@ export const CmsContentPage: React.FC = () => {
       showToast(err instanceof Error ? err.message : "Gửi thông báo thất bại", "negative");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteNotification = async (n: NotificationLog) => {
+    if (!canManage || !window.confirm(`Xóa thông báo "${n.title}" khỏi hộp thư App?`)) return;
+    try {
+      await apiRequest(`/cms/notifications/${encodeURIComponent(n.id)}`, { method: "DELETE" });
+      showToast("Đã xóa thông báo");
+      await loadCms();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Không thể xóa thông báo", "negative");
     }
   };
 
@@ -417,14 +529,27 @@ export const CmsContentPage: React.FC = () => {
                           <code className="truncate text-[11.5px] text-ink-muted">
                             {b.ctaLink}
                           </code>
-                          <button
-                            type="button"
-                            onClick={() => setBannerModal(b)}
-                            className="inline-flex shrink-0 items-center gap-1 text-[12.5px] font-semibold text-pharma-600 hover:underline"
-                          >
-                            <Edit3 className="h-3.5 w-3.5" />
-                            <span>Sửa</span>
-                          </button>
+                          <div className="flex shrink-0 items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setBannerModal(b)}
+                              className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-pharma-600 hover:underline"
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                              <span>Sửa</span>
+                            </button>
+                            {canManage && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBanner(b)}
+                                title="Xóa banner"
+                                className="inline-flex items-center gap-1 text-[12.5px] font-medium text-[#B42318] hover:underline"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                <span>Xóa</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -435,48 +560,84 @@ export const CmsContentPage: React.FC = () => {
 
             {/* TAB 2: CATEGORIES */}
             {tab === "categories" && (
-              <div className="table-shell">
-                <table>
-                  <thead>
-                    <tr>
-                      <th className="w-16">STT</th>
-                      <th>Mã</th>
-                      <th>Tên danh mục</th>
-                      <th>Tên ngắn</th>
-                      <th>Mô tả</th>
-                      <th>Trạng thái</th>
-                    </tr>
-                  </thead>
-                  <tbody className="anim-rows">
-                    {categories.map((c) => (
-                      <tr key={c.id}>
-                        <td className="text-ink-muted tabular-nums">{c.sortOrder}</td>
-                        <td className="whitespace-nowrap">
-                          <code className="text-[12px] text-pharma-600">{c.id}</code>
-                        </td>
-                        <td className="whitespace-nowrap font-semibold text-ink-primary">
-                          {c.name}
-                        </td>
-                        <td className="whitespace-nowrap text-ink-secondary">{c.shortName}</td>
-                        <td className="max-w-md text-[13px] text-ink-muted">{c.description}</td>
-                        <td>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleCategory(c)}
-                            className="whitespace-nowrap rounded-lg px-2.5 py-1 text-[11.5px] font-medium"
-                            style={
-                              c.isActive
-                                ? { backgroundColor: "#E8F8EE", color: "#136C3E" }
-                                : { backgroundColor: "#F1F3F8", color: "#4A536D" }
-                            }
-                          >
-                            {c.isActive ? "Đang hiện" : "Tạm ẩn"}
-                          </button>
-                        </td>
+              <div className="space-y-4">
+                {canManage && (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setCategoryModal({
+                          id: "",
+                          name: "",
+                          shortName: "",
+                          iconKey: "supplement",
+                          description: "",
+                          sortOrder: categories.length + 1,
+                          isActive: true,
+                        })
+                      }
+                      className="btn-press inline-flex h-9 items-center gap-1.5 rounded-xl bg-sidebar px-3.5 text-[13px] font-semibold text-white hover:bg-pharma-600"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Thêm danh mục</span>
+                    </button>
+                  </div>
+                )}
+
+                <div className="table-shell">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th className="w-14">STT</th>
+                        <th>Mã</th>
+                        <th>Tên danh mục</th>
+                        <th>Tên ngắn</th>
+                        <th>Mô tả</th>
+                        <th>Trạng thái</th>
+                        <th className="text-right">Thao tác</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="anim-rows">
+                      {categories.map((c) => (
+                        <tr key={c.id}>
+                          <td className="text-ink-muted tabular-nums">{c.sortOrder}</td>
+                          <td className="whitespace-nowrap">
+                            <code className="text-[12px] text-pharma-600">{c.id}</code>
+                          </td>
+                          <td className="whitespace-nowrap font-semibold text-ink-primary">
+                            {c.name}
+                          </td>
+                          <td className="whitespace-nowrap text-ink-secondary">{c.shortName}</td>
+                          <td className="max-w-sm text-[13px] text-ink-muted">{c.description}</td>
+                          <td>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleCategory(c)}
+                              className="whitespace-nowrap rounded-lg px-2.5 py-1 text-[11.5px] font-medium"
+                              style={
+                                c.isActive
+                                  ? { backgroundColor: "#E8F8EE", color: "#136C3E" }
+                                  : { backgroundColor: "#F1F3F8", color: "#4A536D" }
+                              }
+                            >
+                              {c.isActive ? "Đang hiện" : "Tạm ẩn"}
+                            </button>
+                          </td>
+                          <td className="whitespace-nowrap text-right">
+                            <button
+                              type="button"
+                              onClick={() => setCategoryModal(c)}
+                              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium text-pharma-600 hover:bg-[#EEF0FD]"
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                              <span>Sửa</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
@@ -522,7 +683,7 @@ export const CmsContentPage: React.FC = () => {
                         <th className="text-right">Lượt dùng</th>
                         <th>Hạn dùng</th>
                         <th>Trạng thái</th>
-                        <th className="text-right">Sửa</th>
+                        <th className="text-right">Thao tác</th>
                       </tr>
                     </thead>
                     <tbody className="anim-rows">
@@ -566,14 +727,26 @@ export const CmsContentPage: React.FC = () => {
                             </span>
                           </td>
                           <td className="whitespace-nowrap text-right">
-                            <button
-                              type="button"
-                              onClick={() => setVoucherModal(v)}
-                              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium text-pharma-600 hover:bg-[#EEF0FD]"
-                            >
-                              <Edit3 className="h-3.5 w-3.5" />
-                              <span>Sửa</span>
-                            </button>
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setVoucherModal(v)}
+                                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium text-pharma-600 hover:bg-[#EEF0FD]"
+                              >
+                                <Edit3 className="h-3.5 w-3.5" />
+                                <span>Sửa</span>
+                              </button>
+                              {canManage && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteVoucher(v)}
+                                  title="Xóa mã giảm giá"
+                                  className="inline-flex items-center rounded-lg p-1.5 text-[#B42318] hover:bg-[#FEECEB]"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -625,7 +798,7 @@ export const CmsContentPage: React.FC = () => {
                         <th>Đường dẫn</th>
                         <th>Cập nhật</th>
                         <th>Trạng thái</th>
-                        <th className="text-right">Sửa</th>
+                        <th className="text-right">Thao tác</th>
                       </tr>
                     </thead>
                     <tbody className="anim-rows">
@@ -636,6 +809,7 @@ export const CmsContentPage: React.FC = () => {
                             : a.group === "about"
                               ? { label: "Giới thiệu", bg: "#F1F3F8", ink: "#4A536D" }
                               : { label: "Sức khỏe", bg: "#E8F8EE", ink: "#136C3E" };
+                        const isProtected = PROTECTED_POLICY_SLUGS.has(a.slug);
                         return (
                           <tr key={a.slug}>
                             <td>
@@ -673,14 +847,26 @@ export const CmsContentPage: React.FC = () => {
                               </span>
                             </td>
                             <td className="whitespace-nowrap text-right">
-                              <button
-                                type="button"
-                                onClick={() => setArticleModal(a)}
-                                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium text-pharma-600 hover:bg-[#EEF0FD]"
-                              >
-                                <Edit3 className="h-3.5 w-3.5" />
-                                <span>Sửa</span>
-                              </button>
+                              <div className="inline-flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setArticleModal(a)}
+                                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium text-pharma-600 hover:bg-[#EEF0FD]"
+                                >
+                                  <Edit3 className="h-3.5 w-3.5" />
+                                  <span>Sửa</span>
+                                </button>
+                                {canManage && !isProtected && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteArticle(a)}
+                                    title="Xóa bài viết"
+                                    className="inline-flex items-center rounded-lg p-1.5 text-[#B42318] hover:bg-[#FEECEB]"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         );
@@ -709,10 +895,27 @@ export const CmsContentPage: React.FC = () => {
                         <div className="text-[12px] font-semibold text-ink-secondary">
                           Đã gửi gần đây ({notifications.length})
                         </div>
-                        {notifications.slice(0, 3).map((n) => (
-                          <div key={n.id} className="admin-card p-2.5 text-[12px]">
-                            <div className="font-semibold text-ink-primary">{n.title}</div>
-                            <div className="line-clamp-1 text-ink-muted">{n.body}</div>
+                        {notifications.slice(0, 4).map((n) => (
+                          <div
+                            key={n.id}
+                            className="admin-card flex items-start justify-between gap-2 p-2.5 text-[12px]"
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate font-semibold text-ink-primary">
+                                {n.title}
+                              </div>
+                              <div className="line-clamp-1 text-ink-muted">{n.body}</div>
+                            </div>
+                            {canManage && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteNotification(n)}
+                                title="Xóa thông báo này"
+                                className="shrink-0 rounded p-1 text-ink-muted hover:bg-[#FEECEB] hover:text-[#B42318]"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -802,14 +1005,14 @@ export const CmsContentPage: React.FC = () => {
 
                 <div className="border-t border-[#ECEFF6]" />
 
-                {/* Row 2: GSP Threshold & B2B Default Discounts */}
+                {/* Row 2: Company Info, GSP Threshold & B2B Default Discounts */}
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
                   <div className="lg:col-span-5">
                     <h2 className="text-[16px] font-semibold text-ink-primary">
-                      Cảnh báo hạn dùng & Chiết khấu sỉ
+                      Thông tin liên hệ, Hạn dùng & Chiết khấu sỉ
                     </h2>
                     <p className="mt-1 text-[13px] text-ink-muted">
-                      Cấu hình số ngày báo trước lô cận hạn và mức giảm mặc định theo hạng đối tác.
+                      Cập nhật Hotline, Zalo OA ID hiển thị trên Mini App, mốc báo cận hạn và mức giảm theo hạng đối tác.
                     </p>
                   </div>
 
@@ -817,7 +1020,7 @@ export const CmsContentPage: React.FC = () => {
                     onSubmit={handleSaveSettings}
                     className="admin-subtle-panel space-y-4 p-5 lg:col-span-7"
                   >
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                       <div>
                         <label className="block text-[13px] font-medium text-ink-secondary">
                           Hotline hiển thị
@@ -837,7 +1040,24 @@ export const CmsContentPage: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-[13px] font-medium text-ink-secondary">
-                          Báo trước lô cận hạn (ngày)
+                          Zalo OA ID (Chat nhanh)
+                        </label>
+                        <input
+                          type="text"
+                          value={String(companyInfo.zaloOaId || "")}
+                          onChange={(e) =>
+                            setCompanyInfo({
+                              ...companyInfo,
+                              zaloOaId: e.target.value.trim(),
+                            })
+                          }
+                          placeholder="VD: 4490716441165809191"
+                          className="mt-1 h-10 w-full px-3 tabular-nums"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[13px] font-medium text-ink-secondary">
+                          Báo trước cận hạn (ngày)
                         </label>
                         <input
                           type="number"
@@ -1206,9 +1426,18 @@ export const CmsContentPage: React.FC = () => {
         open={Boolean(bannerModal)}
         onClose={() => setBannerModal(null)}
         widthClass="max-w-lg"
-        title="Chỉnh sửa Banner"
+        title={bannerModal?.id ? "Chỉnh sửa Banner" : "Thêm Banner mới"}
         footer={
           <>
+            {bannerModal?.id && canManage && (
+              <button
+                type="button"
+                onClick={() => bannerModal && handleDeleteBanner(bannerModal)}
+                className="mr-auto h-9 rounded-xl border border-[#F5C6C2] bg-white px-3.5 text-[13px] font-medium text-[#B42318] hover:bg-[#FEECEB]"
+              >
+                Xóa Banner
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setBannerModal(null)}
@@ -1229,10 +1458,12 @@ export const CmsContentPage: React.FC = () => {
       >
         {bannerModal && (
           <form id="banner-editor-form" onSubmit={handleSaveBanner} className="space-y-4">
+            <BannerCover src={bannerModal.imageUrl} alt={bannerModal.title || "Xem trước"} />
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-[12.5px] font-medium text-ink-secondary">
-                  Nhãn nổi bật
+                  Nhãn nổi bật *
                 </label>
                 <input
                   type="text"
@@ -1246,7 +1477,7 @@ export const CmsContentPage: React.FC = () => {
               </div>
               <div>
                 <label className="block text-[12.5px] font-medium text-ink-secondary">
-                  Trang đích (CTA)
+                  Trang đích khi bấm (CTA)
                 </label>
                 <input
                   type="text"
@@ -1254,29 +1485,46 @@ export const CmsContentPage: React.FC = () => {
                   onChange={(e) =>
                     setBannerModal({ ...bannerModal, ctaLink: e.target.value })
                   }
+                  placeholder="/categories hoặc /vouchers"
                   className="mt-1 h-9 w-full px-3"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-4 gap-3">
+              <div className="col-span-3">
+                <label className="block text-[12.5px] font-medium text-ink-secondary">
+                  Tiêu đề chính *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={bannerModal.title}
+                  onChange={(e) =>
+                    setBannerModal({ ...bannerModal, title: e.target.value })
+                  }
+                  className="mt-1 h-9 w-full px-3"
+                />
+              </div>
+              <div>
+                <label className="block text-[12.5px] font-medium text-ink-secondary">
+                  Thứ tự
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={bannerModal.sortOrder}
+                  onChange={(e) =>
+                    setBannerModal({ ...bannerModal, sortOrder: Number(e.target.value) || 1 })
+                  }
+                  className="mt-1 h-9 w-full px-3 tabular-nums"
                 />
               </div>
             </div>
 
             <div>
               <label className="block text-[12.5px] font-medium text-ink-secondary">
-                Tiêu đề chính *
-              </label>
-              <input
-                type="text"
-                required
-                value={bannerModal.title}
-                onChange={(e) =>
-                  setBannerModal({ ...bannerModal, title: e.target.value })
-                }
-                className="mt-1 h-9 w-full px-3"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[12.5px] font-medium text-ink-secondary">
-                Các dòng điểm nhấn (mỗi dòng 1 ý)
+                Các dòng điểm nhấn (bấm Enter xuống dòng cho từng ý)
               </label>
               <textarea
                 rows={3}
@@ -1284,7 +1532,7 @@ export const CmsContentPage: React.FC = () => {
                 onChange={(e) =>
                   setBannerModal({
                     ...bannerModal,
-                    points: e.target.value.split("\n").filter(Boolean),
+                    points: e.target.value.split("\n"),
                   })
                 }
                 className="mt-1 w-full p-2.5 text-[13px]"
@@ -1294,7 +1542,7 @@ export const CmsContentPage: React.FC = () => {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-lg border border-borderline bg-white px-3 text-[12.5px] font-medium text-ink-secondary hover:bg-[#EEF0FD]">
                 <Upload className="h-3.5 w-3.5" />
-                <span>Tải ảnh mới</span>
+                <span>Tải ảnh mới từ máy</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -1318,14 +1566,159 @@ export const CmsContentPage: React.FC = () => {
         )}
       </ModalDialog>
 
+      {/* PORTALED MODAL: CATEGORY EDITOR */}
+      <ModalDialog
+        open={Boolean(categoryModal)}
+        onClose={() => setCategoryModal(null)}
+        widthClass="max-w-lg"
+        title={categoryModal?.id ? "Chỉnh sửa Danh mục" : "Thêm Danh mục mới"}
+        footer={
+          <>
+            {categoryModal?.id && canManage && (
+              <button
+                type="button"
+                onClick={() => categoryModal && handleDeleteCategory(categoryModal)}
+                className="mr-auto h-9 rounded-xl border border-[#F5C6C2] bg-white px-3.5 text-[13px] font-medium text-[#B42318] hover:bg-[#FEECEB]"
+              >
+                Xóa danh mục
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setCategoryModal(null)}
+              className="h-9 rounded-xl border border-borderline bg-white px-4 text-[13px] font-medium text-ink-secondary hover:bg-frame"
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              form="category-editor-form"
+              disabled={saving}
+              className="btn-press h-9 rounded-xl bg-pharma-600 px-5 text-[13px] font-semibold text-white hover:bg-pharma-700"
+            >
+              Lưu danh mục
+            </button>
+          </>
+        }
+      >
+        {categoryModal && (
+          <form id="category-editor-form" onSubmit={handleSaveCategory} className="space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="sm:col-span-2">
+                <label className="block text-[12.5px] font-medium text-ink-secondary">
+                  Tên đầy đủ danh mục / Công ty *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={categoryModal.name}
+                  onChange={(e) =>
+                    setCategoryModal({ ...categoryModal, name: e.target.value })
+                  }
+                  placeholder="VD: Công ty Dược phẩm BioCare"
+                  className="mt-1 h-9 w-full px-3"
+                />
+              </div>
+              <div>
+                <label className="block text-[12.5px] font-medium text-ink-secondary">
+                  Tên ngắn trên App *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={categoryModal.shortName}
+                  onChange={(e) =>
+                    setCategoryModal({ ...categoryModal, shortName: e.target.value })
+                  }
+                  placeholder="VD: BioCare"
+                  className="mt-1 h-9 w-full px-3"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[12.5px] font-medium text-ink-secondary">
+                  Biểu tượng hiển thị
+                </label>
+                <select
+                  value={categoryModal.iconKey}
+                  onChange={(e) =>
+                    setCategoryModal({ ...categoryModal, iconKey: e.target.value })
+                  }
+                  className="mt-1 h-9 w-full pl-2.5"
+                >
+                  <option value="supplement">Viên nang / TPBVSK</option>
+                  <option value="rx">Khiên Y tế / Thuốc</option>
+                  <option value="imported_rx">Ống nghe / Chuyên khoa</option>
+                  <option value="otc">Nhịp tim / Thông dụng</option>
+                  <option value="pediatric">Nhi khoa & Gia đình</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[12.5px] font-medium text-ink-secondary">
+                  Thứ tự sắp xếp
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={categoryModal.sortOrder}
+                  onChange={(e) =>
+                    setCategoryModal({
+                      ...categoryModal,
+                      sortOrder: Number(e.target.value) || 1,
+                    })
+                  }
+                  className="mt-1 h-9 w-full px-3 tabular-nums"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[12.5px] font-medium text-ink-secondary">
+                Mô tả ngắn
+              </label>
+              <textarea
+                rows={2}
+                value={categoryModal.description}
+                onChange={(e) =>
+                  setCategoryModal({ ...categoryModal, description: e.target.value })
+                }
+                className="mt-1 w-full p-2.5 text-[13px]"
+              />
+            </div>
+
+            <label className="flex cursor-pointer items-center gap-2 text-[13px] font-medium text-ink-primary">
+              <input
+                type="checkbox"
+                checked={categoryModal.isActive}
+                onChange={(e) =>
+                  setCategoryModal({ ...categoryModal, isActive: e.target.checked })
+                }
+              />
+              <span>Hiển thị trên Zalo Mini App</span>
+            </label>
+          </form>
+        )}
+      </ModalDialog>
+
       {/* PORTALED MODAL: VOUCHER EDITOR */}
       <ModalDialog
         open={Boolean(voucherModal)}
         onClose={() => setVoucherModal(null)}
         widthClass="max-w-lg"
-        title="Cấu hình Mã giảm giá"
+        title={voucherModal?.id ? "Chỉnh sửa Mã giảm giá" : "Tạo Mã giảm giá mới"}
         footer={
           <>
+            {voucherModal?.id && canManage && (
+              <button
+                type="button"
+                onClick={() => voucherModal && handleDeleteVoucher(voucherModal)}
+                className="mr-auto h-9 rounded-xl border border-[#F5C6C2] bg-white px-3.5 text-[13px] font-medium text-[#B42318] hover:bg-[#FEECEB]"
+              >
+                Xóa mã
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setVoucherModal(null)}
@@ -1346,7 +1739,7 @@ export const CmsContentPage: React.FC = () => {
       >
         {voucherModal && (
           <form id="voucher-editor-form" onSubmit={handleSaveVoucher} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <label className="block text-[12.5px] font-medium text-ink-secondary">
                   Mã code *
@@ -1366,13 +1759,34 @@ export const CmsContentPage: React.FC = () => {
               </div>
               <div>
                 <label className="block text-[12.5px] font-medium text-ink-secondary">
-                  Hạn sử dụng
+                  Hạn sử dụng *
                 </label>
                 <input
-                  type="text"
-                  value={voucherModal.expiryDate}
+                  type="date"
+                  required
+                  value={toDateInputValue(voucherModal.expiryDate)}
                   onChange={(e) =>
-                    setVoucherModal({ ...voucherModal, expiryDate: e.target.value })
+                    setVoucherModal({
+                      ...voucherModal,
+                      expiryDate: fromDateInputToVi(e.target.value),
+                    })
+                  }
+                  className="mt-1 h-9 w-full px-2.5 tabular-nums"
+                />
+              </div>
+              <div>
+                <label className="block text-[12.5px] font-medium text-ink-secondary">
+                  Tổng lượt dùng
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={voucherModal.usageLimit}
+                  onChange={(e) =>
+                    setVoucherModal({
+                      ...voucherModal,
+                      usageLimit: Number(e.target.value) || 100,
+                    })
                   }
                   className="mt-1 h-9 w-full px-3 tabular-nums"
                 />
@@ -1394,6 +1808,20 @@ export const CmsContentPage: React.FC = () => {
               />
             </div>
 
+            <div>
+              <label className="block text-[12.5px] font-medium text-ink-secondary">
+                Mô tả điều kiện hiển thị trên App
+              </label>
+              <input
+                type="text"
+                value={voucherModal.description}
+                onChange={(e) =>
+                  setVoucherModal({ ...voucherModal, description: e.target.value })
+                }
+                className="mt-1 h-9 w-full px-3"
+              />
+            </div>
+
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <label className="block text-[12.5px] font-medium text-ink-secondary">
@@ -1409,16 +1837,17 @@ export const CmsContentPage: React.FC = () => {
                   }
                   className="mt-1 h-9 w-full pl-2.5"
                 >
-                  <option value="fixed">Số tiền</option>
+                  <option value="fixed">Số tiền (VNĐ)</option>
                   <option value="percent">Theo %</option>
                 </select>
               </div>
               <div>
                 <label className="block text-[12.5px] font-medium text-ink-secondary">
-                  Mức giảm
+                  {voucherModal.discountType === "percent" ? "Mức giảm (%)" : "Mức giảm (đ)"}
                 </label>
                 <input
                   type="number"
+                  min={1}
                   value={voucherModal.discountValue}
                   onChange={(e) =>
                     setVoucherModal({
@@ -1431,10 +1860,11 @@ export const CmsContentPage: React.FC = () => {
               </div>
               <div>
                 <label className="block text-[12.5px] font-medium text-ink-secondary">
-                  Đơn tối thiểu
+                  Đơn tối thiểu (đ)
                 </label>
                 <input
                   type="number"
+                  min={0}
                   value={voucherModal.minOrderValue}
                   onChange={(e) =>
                     setVoucherModal({
@@ -1446,6 +1876,27 @@ export const CmsContentPage: React.FC = () => {
                 />
               </div>
             </div>
+
+            {voucherModal.discountType === "percent" && (
+              <div>
+                <label className="block text-[12.5px] font-medium text-ink-secondary">
+                  Giảm tối đa (VNĐ — để trống nếu không giới hạn)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={voucherModal.maxDiscount ?? ""}
+                  onChange={(e) =>
+                    setVoucherModal({
+                      ...voucherModal,
+                      maxDiscount: e.target.value ? Number(e.target.value) : null,
+                    })
+                  }
+                  placeholder="VD: 150000"
+                  className="mt-1 h-9 w-full px-3 tabular-nums"
+                />
+              </div>
+            )}
 
             <label className="flex cursor-pointer items-center gap-2 text-[13px] font-medium text-ink-primary">
               <input
@@ -1469,6 +1920,17 @@ export const CmsContentPage: React.FC = () => {
         title="Soạn thảo Bài viết / Chính sách"
         footer={
           <>
+            {articleModal?.slug &&
+              canManage &&
+              !PROTECTED_POLICY_SLUGS.has(articleModal.slug) && (
+                <button
+                  type="button"
+                  onClick={() => articleModal && handleDeleteArticle(articleModal)}
+                  className="mr-auto h-9 rounded-xl border border-[#F5C6C2] bg-white px-3.5 text-[13px] font-medium text-[#B42318] hover:bg-[#FEECEB]"
+                >
+                  Xóa bài viết
+                </button>
+              )}
             <button
               type="button"
               onClick={() => setArticleModal(null)}
@@ -1482,7 +1944,7 @@ export const CmsContentPage: React.FC = () => {
               disabled={saving}
               className="btn-press h-9 rounded-xl bg-pharma-600 px-5 text-[13px] font-semibold text-white hover:bg-pharma-700"
             >
-              Xuất bản
+              Lưu bài viết
             </button>
           </>
         }
@@ -1496,12 +1958,19 @@ export const CmsContentPage: React.FC = () => {
                 </label>
                 <select
                   value={articleModal.group}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const g = e.target.value as "policy" | "about" | "health";
                     setArticleModal({
                       ...articleModal,
-                      group: e.target.value as "policy" | "about" | "health",
-                    })
-                  }
+                      group: g,
+                      categoryLabel:
+                        g === "policy"
+                          ? "Điều khoản sử dụng"
+                          : g === "about"
+                            ? "VỀ CHÚNG TÔI"
+                            : "TIN SỨC KHỎE",
+                    });
+                  }}
                   className="mt-1 h-9 w-full pl-3"
                 >
                   <option value="policy">Chính sách điều khoản Zalo</option>
@@ -1556,7 +2025,7 @@ export const CmsContentPage: React.FC = () => {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-[13px] font-semibold text-ink-primary">
-                  Nội dung chi tiết
+                  Nội dung chi tiết (bấm Enter để tách đoạn)
                 </span>
                 <button
                   type="button"
@@ -1580,16 +2049,33 @@ export const CmsContentPage: React.FC = () => {
 
               {articleModal.sections.map((sec, idx) => (
                 <div key={idx} className="admin-subtle-panel space-y-2 p-3">
-                  <input
-                    type="text"
-                    value={sec.heading}
-                    onChange={(e) => {
-                      const next = [...articleModal.sections];
-                      next[idx] = { ...sec, heading: e.target.value };
-                      setArticleModal({ ...articleModal, sections: next });
-                    }}
-                    className="h-8 w-full px-2.5 text-[13px] font-medium"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={sec.heading}
+                      onChange={(e) => {
+                        const next = [...articleModal.sections];
+                        next[idx] = { ...sec, heading: e.target.value };
+                        setArticleModal({ ...articleModal, sections: next });
+                      }}
+                      className="h-8 flex-1 px-2.5 text-[13px] font-medium"
+                    />
+                    {articleModal.sections.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setArticleModal({
+                            ...articleModal,
+                            sections: articleModal.sections.filter((_, i) => i !== idx),
+                          })
+                        }
+                        title="Xóa mục này"
+                        className="rounded p-1.5 text-ink-muted hover:bg-[#FEECEB] hover:text-[#B42318]"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                   <textarea
                     rows={3}
                     value={sec.paragraphs.join("\n")}
@@ -1597,7 +2083,7 @@ export const CmsContentPage: React.FC = () => {
                       const next = [...articleModal.sections];
                       next[idx] = {
                         ...sec,
-                        paragraphs: e.target.value.split("\n").filter(Boolean),
+                        paragraphs: e.target.value.split("\n"),
                       };
                       setArticleModal({ ...articleModal, sections: next });
                     }}
@@ -1606,6 +2092,17 @@ export const CmsContentPage: React.FC = () => {
                 </div>
               ))}
             </div>
+
+            <label className="flex cursor-pointer items-center gap-2 text-[13px] font-medium text-ink-primary">
+              <input
+                type="checkbox"
+                checked={articleModal.isPublished}
+                onChange={(e) =>
+                  setArticleModal({ ...articleModal, isPublished: e.target.checked })
+                }
+              />
+              <span>Xuất bản hiển thị trên Zalo Mini App</span>
+            </label>
           </form>
         )}
       </ModalDialog>
